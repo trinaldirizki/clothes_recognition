@@ -8,16 +8,51 @@ import com.google.gson.annotations.SerializedName;
 
 public class Clothes {
 
-    @SerializedName("title")
-    private String title;
-
     @SerializedName("image")
     private String image;
 
-    @SerializedName("response")
-    private String response;
+    @SerializedName("pattern")
+    private ClothesPattern pattern;
 
-    public String getResponse() {
-        return response;
+    @SerializedName("color")
+    private ClothesColor color;
+
+    @SerializedName("success")
+    private String success;
+
+    public ClothesPattern getPattern ()
+    {
+        return pattern;
+    }
+
+    public void setPattern (ClothesPattern pattern)
+    {
+        this.pattern = pattern;
+    }
+
+    public ClothesColor getColor ()
+    {
+        return color;
+    }
+
+    public void setColor (ClothesColor color)
+    {
+        this.color = color;
+    }
+
+    public String getSuccess ()
+    {
+        return success;
+    }
+
+    public void setSuccess (String success)
+    {
+        this.success = success;
+    }
+
+    @Override
+    public String toString()
+    {
+        return "Clothes: [pattern = "+pattern+", color = "+color+"]";
     }
 }

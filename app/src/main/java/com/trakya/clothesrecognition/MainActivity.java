@@ -4,6 +4,7 @@ import android.Manifest;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.camera2.CameraAccessException;
@@ -25,6 +26,7 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Base64;
+import android.util.Log;
 import android.util.Size;
 import android.util.SparseIntArray;
 import android.view.Surface;
@@ -46,6 +48,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
+import okhttp3.MediaType;
+import okhttp3.MultipartBody;
+import okhttp3.RequestBody;
 import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
@@ -120,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         Retrofit.Builder builder = new Retrofit.Builder()
-                .baseUrl("http://127.0.0.1:5000/")
+                .baseUrl("http://192.168.0.41:5000")
                 .addConverterFactory(GsonConverterFactory.create());
 
         mRetrofit = builder.build();
@@ -159,7 +164,16 @@ public class MainActivity extends AppCompatActivity {
             int rotation = getWindowManager().getDefaultDisplay().getRotation();
             captureBuilder.set(CaptureRequest.JPEG_ORIENTATION,ORIENTATIONS.get(rotation));
 
-            file = new File(Environment.getExternalStorageDirectory()+"/"+UUID.randomUUID().toString()+".jpg");
+            // Create app folder
+            File folder = new File(Environment.getExternalStorageDirectory() +
+                    File.separator + "ClothesRecognition");
+            boolean success = true;
+            if (!folder.exists()) {
+                success = folder.mkdirs();
+            }
+
+            String filePath = Environment.getExternalStorageDirectory()+"/ClothesRecognition/"+UUID.randomUUID().toString()+".jpg";
+            file = new File(filePath);
             ImageReader.OnImageAvailableListener readerListener = new ImageReader.OnImageAvailableListener() {
                 @Override
                 public void onImageAvailable(ImageReader imageReader) {
@@ -170,14 +184,7 @@ public class MainActivity extends AppCompatActivity {
                         byte[] bytes = new byte[buffer.capacity()];
                         buffer.get(bytes);
                         save(bytes);
-
-                    }
-                    catch (FileNotFoundException e)
-                    {
-                        e.printStackTrace();
-                    }
-                    catch (IOException e)
-                    {
+                    } catch (IOException e) {
                         e.printStackTrace();
                     }
                     finally {
@@ -206,6 +213,7 @@ public class MainActivity extends AppCompatActivity {
                     super.onCaptureCompleted(session, request, result);
                     Toast.makeText(MainActivity.this, "Saved "+file, Toast.LENGTH_SHORT).show();
                     createCameraPreview();
+                    uploadImage(file);
                 }
             };
 
@@ -224,6 +232,7 @@ public class MainActivity extends AppCompatActivity {
 
                 }
             },mBackgroundHandler);
+
 
 
         } catch (CameraAccessException e) {
@@ -273,6 +282,7 @@ public class MainActivity extends AppCompatActivity {
     private void openCamera() {
         CameraManager manager = (CameraManager)getSystemService(Context.CAMERA_SERVICE);
         try{
+            assert manager != null;
             cameraId = manager.getCameraIdList()[0];
             CameraCharacteristics characteristics = manager.getCameraCharacteristics(cameraId);
             StreamConfigurationMap map = characteristics.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP);
@@ -361,30 +371,46 @@ public class MainActivity extends AppCompatActivity {
         mBackgroundHandler = new Handler(mBackgroundThread.getLooper());
     }
 
-    private String imageToString(){
-        ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
-        mBitmap.compress(Bitmap.CompressFormat.JPEG, 100,byteArrayOutputStream);
-        byte[] imageByte = byteArrayOutputStream.toByteArray();
-        return Base64.encodeToString(imageByte,Base64.DEFAULT);
-    }
-
-    private void uploadImage(){
-        String image = imageToString();
-        String title ="SampleImage";
+    private void uploadImage(File file){
+        Log.d("API", String.valueOf(file.length()));
+        File compressedImage = compressImage(file);
+        RequestBody requestBody = RequestBody.create(MediaType.parse("image/*"), file);
+        MultipartBody.Part body = MultipartBody.Part.createFormData("image", file.getName(), requestBody);
         ApiClient apiClient = mRetrofit.create(ApiClient.class);
-        Call<Clothes> call = apiClient.uploadImage(title,image);
+        Call<Clothes> call = apiClient.uploadImage(body);
         call.enqueue(new Callback<Clothes>() {
             @Override
             public void onResponse(Call<Clothes> call, Response<Clothes> response) {
                 Clothes clothes = response.body();
-                Toast.makeText(MainActivity.this, "Server Response: " + clothes.getResponse(), Toast.LENGTH_LONG).show();
+                Log.d("API", "Response " + clothes.toString());
+                Toast.makeText(MainActivity.this, "Server Response: " + clothes.toString(), Toast.LENGTH_LONG).show();
 
             }
 
             @Override
             public void onFailure(Call<Clothes> call, Throwable t) {
-
+                Log.d("API", "Error" + t.getMessage());
+                Toast.makeText(MainActivity.this, "Server Error", Toast.LENGTH_LONG);
             }
         });
+    }
+
+    private File compressImage(File file){
+        Bitmap b = BitmapFactory.decodeFile(file.getAbsolutePath());
+        int scale = 5;
+        Log.d("Image", String.valueOf(b.getWidth()) + " x " + String.valueOf(b.getHeight()));
+        Bitmap out = Bitmap.createScaledBitmap(b, b.getWidth() / scale, b.getHeight() / scale, false);
+        FileOutputStream fOut;
+        try {
+            fOut = new FileOutputStream(file);
+            out.compress(Bitmap.CompressFormat.JPEG, 100, fOut);
+            fOut.flush();
+            fOut.close();
+            b.recycle();
+            out.recycle();
+        } catch (Exception e) {
+            Log.d("FileError", e.getMessage());
+        }
+        return file;
     }
 }
