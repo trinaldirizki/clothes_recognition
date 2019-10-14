@@ -125,7 +125,7 @@ public class MainActivity extends AppCompatActivity {
         });
 
         Retrofit.Builder builder = new Retrofit.Builder()
-                .baseUrl("http://192.168.0.41:5000")
+                .baseUrl("http://192.168.43.160:5000")
                 .addConverterFactory(GsonConverterFactory.create());
 
         mRetrofit = builder.build();
